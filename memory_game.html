@@ -1285,7 +1285,7 @@
             // 기억력 숫자에 zoom 효과 추가
             stageDisplay.classList.remove('iq-zoom');
             void stageDisplay.offsetWidth; // 강제 리플로우
-            stageDisplay.textContent = `당신의 올영력은 아마도...`;
+            stageDisplay.textContent = `당신의 올영력은 아마도... ${memoryScore} 정도?`;
             stageDisplay.classList.add('iq-zoom');
             
             const keys = Object.keys(keywords);
