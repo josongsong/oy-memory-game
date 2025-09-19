@@ -1,317 +1,4 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>기억력 챌린지</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'IBM Plex Sans KR', sans-serif;
-            overflow: hidden;
-            background-color: #87CEEB; /* 하늘색 배경 */
-        }
-        #game-container {
-            width: 100vw;
-            height: 100vh;
-            position: relative;
-        }
-        #ui-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none; /* UI가 3D 뷰를 가리지 않도록 */
-        }
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1000;
-            pointer-events: auto; /* 오버레이 내 버튼 등은 클릭 가능하도록 */
-        }
-        #message-box {
-            position: absolute;
-            opacity: 0; /* 기본적으로 숨김 */
-        }
-        .key-indicator {
-            background-color: rgba(0, 0, 0, 0.5);
-            border-radius: 0.8rem;
-            padding: 1rem 1.5rem;
-            color: white;
-            font-weight: bold;
-            font-size: 1.4rem;
-            min-height: 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            transition: all 0.2s ease;
-        }
-        
-        .key-indicator:hover {
-            background-color: rgba(0, 0, 0, 0.7);
-            border-color: rgba(255, 255, 255, 0.4);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        }
-        
-        .key-indicator:active {
-            transform: scale(0.95);
-        }
-        .life {
-            width: 40px;
-            height: 40px;
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24" fill="red"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>');
-            background-size: contain;
-            background-repeat: no-repeat;
-            transition: transform 0.2s ease-in-out;
-        }
-        .life.lost {
-            transform: scale(0);
-        }
-        .timer-bar {
-            height: 10px;
-            background-color: #4CAF50;
-            border-radius: 5px;
-            transition: width 0.1s linear;
-        }
-        #progress-container {
-            position: absolute;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 10px;
-        }
-        .progress-dot {
-            width: 60px;
-            height: 60px;
-            background-color: rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border: 3px solid rgba(34, 197, 94, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: rgba(34, 197, 94, 0.8);
-            font-size: 32px;
-            font-weight: bold;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
-        
-        /* 텍스트 애니메이션 */
-        @keyframes slide-up {
-            from { opacity: 0; transform: translate(-50%, -250%) scale(0.8); }
-            to { opacity: 1; transform: translate(-50%, -320%) scale(1); }
-        }
-        .animate-up { animation: slide-up 0.3s ease-out forwards; }
 
-        @keyframes slide-down {
-            from { opacity: 0; transform: translate(-50%, 200%) scale(0.8); }
-            to { opacity: 1; transform: translate(-50%, 450%) scale(1); }
-        }
-        .animate-down { animation: slide-down 0.3s ease-out forwards; }
-
-        @keyframes slide-left {
-            from { opacity: 0; transform: translate(-180%, -50%) scale(0.8); }
-            to { opacity: 1; transform: translate(-220%, -50%) scale(1); }
-        }
-        .animate-left { animation: slide-left 0.3s ease-out forwards; }
-
-        @keyframes slide-right {
-            from { opacity: 0; transform: translate(80%, -50%) scale(0.8); }
-            to { opacity: 1; transform: translate(120%, -50%) scale(1); }
-        }
-        .animate-right { animation: slide-right 0.3s ease-out forwards; }
-
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        #start-button.pulsing {
-             animation: pulse 2s infinite;
-        }
-        #flash-overlay {
-            transition: opacity 0.1s ease-out;
-        }
-        #volume-controls {
-            pointer-events: auto;
-        }
-        
-        /* 플랫한 세로 슬라이더 */
-        .slider-flat {
-            -webkit-appearance: none;
-            appearance: none;
-            background: #333;
-            outline: none;
-            border: none;
-            border-radius: 2px;
-            writing-mode: bt-lr; /* IE */
-            -webkit-appearance: slider-vertical; /* WebKit */
-            transition: background-color 0.2s ease;
-        }
-        
-        .slider-flat:hover {
-            background: #444;
-        }
-        
-        .slider-flat::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            background: #fff;
-            border: 2px solid #333;
-            border-radius: 2px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .slider-flat::-webkit-slider-thumb:hover {
-            background: #f0f0f0;
-            border-color: #555;
-        }
-        
-        .slider-flat::-webkit-slider-thumb:active {
-            background: #e0e0e0;
-            transform: scale(0.95);
-        }
-        
-        .slider-flat::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
-            background: #fff;
-            border: 2px solid #333;
-            border-radius: 2px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .slider-flat::-moz-range-thumb:hover {
-            background: #f0f0f0;
-            border-color: #555;
-        }
-        
-        /* Firefox에서 세로 슬라이더 지원 */
-        .slider-flat[orient="vertical"] {
-            writing-mode: bt-lr;
-            -webkit-appearance: slider-vertical;
-        }
-        
-        /* IQ 숫자 zoom 효과 */
-        .iq-zoom {
-            animation: iqZoom 0.6s ease-in-out;
-        }
-        
-        @keyframes iqZoom {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.2); }
-            100% { transform: scale(1); }
-        }
-    </style>
-</head>
-<body class="bg-gray-800 text-white">
-
-    <div id="game-container">
-        <!-- 3D 렌더링이 이루어질 캔버스. 두근-->
-        <div id="canvas-container" class="w-full h-full"></div>
-        
-        <div id="flash-overlay" class="absolute inset-0 bg-red-500 opacity-0 pointer-events-none"></div>
-
-        <!-- 게임 UI -->
-        <div id="ui-layer">
-             <!-- 상단 UI: 스테이지, 라이프 -->
-            <div class="w-full flex justify-between items-center p-4 md:p-8">
-                <h1 id="stage-display" class="text-2xl md:text-4xl font-bold text-white" style="text-shadow: 2px 2px 4px #000000;"></h1>
-                <div id="lives-container" class="flex space-x-2">
-                    <div class="life"></div>
-                    <div class="life"></div>
-                    <div class="life"></div>
-                </div>
-            </div>
-            
-            <!-- 진행상황ㅇ 표시 -->
-            <div id="progress-container"></div>
-
-            <!-- 중앙: 캐릭터 멘트 -->
-            <div id="message-box" class="text-6xl md:text-8xl font-bold text-yellow-300" style="text-shadow: 3px 3px 6px #000000;"></div>
-            <!-- // 하단 UI: 타이머 -->
-            <div class="absolute bottom-0 left-0 right-0 w-full flex flex-col items-center space-y-4 p-4 md:p-8">
-                 <div id="timer-container" class="w-full max-w-md bg-gray-700 rounded-full overflow-hidden opacity-0">
-                    <div id="timer-bar" class="timer-bar"></div>
-                </div>
-            </div>
-
-            <!-- 좌측 하단: 볼륨 조절 -->
-            <div id="volume-controls" class="absolute bottom-4 left-4 flex space-x-6 bg-black bg-opacity-70 p-6 rounded-xl backdrop-blur-sm border border-white border-opacity-30">
-                <!-- 배경음악 -->
-                <div class="flex flex-col items-center space-y-3">
-                    <div class="flex flex-col items-center space-y-1">
-                        <span class="text-white text-sm font-semibold">음악</span>
-                    </div>
-                    <div class="relative">
-                        <input type="range" id="bgm-volume" min="0" max="100" class="w-4 h-32 appearance-none cursor-pointer slider-flat" orient="vertical">
-                    </div>
-                </div>
-                
-                <!-- 효과음 -->
-                <div class="flex flex-col items-center space-y-3">
-                    <div class="flex flex-col items-center space-y-1">
-                        <span class="text-white text-sm font-semibold">소리</span>
-                    </div>
-                    <div class="relative">
-                        <input type="range" id="sfx-volume" min="0" max="100" class="w-4 h-32 appearance-none cursor-pointer slider-flat" orient="vertical">
-                    </div>
-                </div>
-            </div>
-
-            <!-- 우측 하단: 화살표 버튼 -->
-            <div class="absolute bottom-4 right-4 pointer-events-auto">
-                <!-- 화살표 방향에 맞는 배열 -->
-                <div class="flex flex-col items-center space-y-2">
-                    <!-- 위쪽 화살표 -->
-                    <button class="key-indicator hover:bg-opacity-80 transition-all duration-200 transform hover:scale-105 active:scale-95 cursor-pointer" data-key="ArrowUp">↑ 트렌드리딩</button>
-                    
-                    <!-- 좌우 화살표 -->
-                    <div class="flex space-x-4">
-                        <button class="key-indicator hover:bg-opacity-80 transition-all duration-200 transform hover:scale-105 active:scale-95 cursor-pointer" data-key="ArrowLeft">← 협업,소통</button>
-                        <button class="key-indicator hover:bg-opacity-80 transition-all duration-200 transform hover:scale-105 active:scale-95 cursor-pointer" data-key="ArrowRight">→ 함께성장</button>
-                    </div>
-                    
-                    <!-- 아래쪽 화살표 -->
-                    <button class="key-indicator hover:bg-opacity-80 transition-all duration-200 transform hover:scale-105 active:scale-95 cursor-pointer" data-key="ArrowDown">↓ 강한실행력</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 시작 화면 -->
-        <div id="start-screen" class="overlay absolute inset-0 bg-black bg-opacity-70 flex flex-col justify-center items-center text-center p-4">
-            <h1 class="text-5xl md:text-7xl font-bold mb-4">올영력 챌린지!</h1>
-            <p class="text-lg md:text-xl mb-8 max-w-2xl">
-            
-            올리브영의 일하는 방식 구호에 맞춰 키보드 화살표가 눌러집니다. <br>동작을 차례대로 기억해 두었다가, 구호가 모두 끝나면 키보드를 순서대로 눌러 따라해주세요!</p>
-            <button id="start-button" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-2xl transition-transform transform hover:scale-105">시작하기</button>
-        </div>
-
-        <!-- 게임 오버 화면 -->
-
-        <div id="game-over-screen" class="overlay absolute inset-0 bg-black bg-opacity-70 flex flex-col justify-center items-center text-center p-4 hidden">
-            <h1 class="text-6xl md:text-8xl font-bold mb-4">게임 오버!!</h1>
-            <button id="retry-button" class="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg text-2xl transition-transform transform hover:scale-105">다시 도전</button>
-        </div>
-    </div>
-    
-    
-    <audio id="bgm" loop src="Pixel Dreams.mp3"></audio>
-
-    <script>
     
         const INITIAL_LIVES = 3;
         const INITIAL_STAGE = 1;
@@ -357,7 +44,6 @@
         let timeLimit;
         let timerInterval;
         let shakeDuration = 0;
-        let gameOverTimeout; // 게임 오버 후 자동 리셋 타이머
 
         // --- UI 요소 ---
         const stageDisplay = document.getElementById('stage-display');
@@ -529,12 +215,12 @@
             canvas.height = height; // 몸통 비율에 맞게 조정
             const context = canvas.getContext('2d');
             
-            // 올리브영 RoyalBlue 배경
-            context.fillStyle = '#4169E1'; // RoyalBlue
+            // 올리브영 녹색 배경
+            context.fillStyle = '#7CB342';
             context.fillRect(0, 0, width, height);
             
             // 글자 스타일
-            context.font = `Bold ${width * 0.4}px 'IBM Plex Sans KR'`;
+            context.font = `Bold ${width * 0.8}px 'IBM Plex Sans KR'`;
             context.fillStyle = 'white';
             context.textAlign = 'center';
             context.textBaseline = 'middle';
@@ -627,37 +313,21 @@
             character.add(body);
             character.body = body;
 
-            // 반팔 티셔츠 - 청바지 색
+            // 반팔 티셔츠 - 올리브영 그린 컬러
             const shirtGeo = new THREE.BoxGeometry(0.85, 0.7, 0.45);
             
-            // 티셔츠 재질 배열
-            const frontShirtMaterial = createTextMaterial('올리브영', 50, 50);
-            
-            // 뒷면에 로고 추가
-            const textureLoader = new THREE.TextureLoader();
-            const backShirtMaterial = new THREE.MeshStandardMaterial({
-                color: 0x4169E1, // RoyalBlue
-                roughness: 0.8,
-                metalness: 0.1
-            });
-
-            textureLoader.load('olivelogo.png', function(logoTexture) {
-                logoTexture.wrapS = THREE.RepeatWrapping;
-                logoTexture.wrapT = THREE.RepeatWrapping;
-                logoTexture.repeat.set(1, 1);
-                backShirtMaterial.map = logoTexture;
-                backShirtMaterial.needsUpdate = true;
-            });
-
-            const sideShirtMaterial = new THREE.MeshStandardMaterial({ color: 0x4169E1, roughness: 0.8, metalness: 0.1 }); // RoyalBlue
+            // 티셔츠 재질 배열 - 앞면에 '올', 뒷면에 '영'
+            const frontShirtMaterial = createTextMaterial('영', 100, 100);
+            const backShirtMaterial = createTextMaterial('올', 100, 100);
+            const sideShirtMaterial = new THREE.MeshStandardMaterial({ color: 0x7CB342, roughness: 0.8, metalness: 0.1 }); // 올리브영 그린
             
             const shirtMaterials = [
-                sideShirtMaterial, // right
-                sideShirtMaterial, // left
-                sideShirtMaterial, // top
-                sideShirtMaterial, // bottom
-                backShirtMaterial,  // back
-                frontShirtMaterial  // front
+                sideShirtMaterial, // right - 올리브영 그린
+                sideShirtMaterial, // left - 올리브영 그린
+                sideShirtMaterial, // top - 올리브영 그린
+                sideShirtMaterial, // bottom - 올리브영 그린
+                backShirtMaterial,  // back - '영' 텍스트
+                frontShirtMaterial  // front - '올' 텍스트
             ];
             
             const shirt = new THREE.Mesh(shirtGeo, shirtMaterials);
@@ -1285,7 +955,7 @@
             // 기억력 숫자에 zoom 효과 추가
             stageDisplay.classList.remove('iq-zoom');
             void stageDisplay.offsetWidth; // 강제 리플로우
-            stageDisplay.textContent = `당신의 올영력은 아마도...`;
+            stageDisplay.textContent = `당신의 기억력은 아마도...`;
             stageDisplay.classList.add('iq-zoom');
             
             const keys = Object.keys(keywords);
@@ -1472,8 +1142,7 @@
             shakeDuration = 0.5;
             
             // 5초 후 자동으로 최초화면으로 돌아가기
-            clearTimeout(gameOverTimeout); // 이전 타임아웃 제거
-            gameOverTimeout = setTimeout(() => {
+            setTimeout(() => {
                 resetGame();
             }, 5000);
         }
@@ -1633,7 +1302,6 @@
             stageDisplay.classList.add('iq-zoom');
         }
         function resetGame() {
-            clearTimeout(gameOverTimeout); // 자동 리셋 타임아웃 취소
             startScreen.classList.remove('hidden');
             gameOverScreen.classList.add('hidden');
             gameState = 'START';
@@ -1713,11 +1381,8 @@
             });
         });
 
-        // 폰트가 모두 로드된 후 3D 씬을 초기화합니다.
-        document.fonts.ready.then(function () {
-            init3D();
-            document.getElementById('start-button').classList.add('pulsing');
-        });
+        init3D();
+        document.getElementById('start-button').classList.add('pulsing');
         
         // 게임 대기상태에서 하트와 볼륨 UI 숨기기
         livesContainer.style.opacity = '0';
@@ -1727,7 +1392,4 @@
         bgmVolumeSlider.value = BGM_DEFAULT_VOLUME;
         sfxVolumeSlider.value = SFX_DEFAULT_VOLUME;
 
-    </script>
-</body>
-</html>
-
+    
