@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>기억력 챌린지</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -37,6 +37,12 @@
             font-family: 'IBM Plex Sans KR', sans-serif;
             overflow: hidden;
             background-color: #87CEEB; /* 하늘색 배경 */
+            touch-action: manipulation; /* 터치 확대 방지 */
+            -webkit-touch-callout: none; /* iOS 터치 콜아웃 방지 */
+            -webkit-user-select: none; /* 텍스트 선택 방지 */
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
         }
         #game-container {
             width: 100vw;
@@ -278,6 +284,75 @@
             opacity: 1;
             transform: translate(-50%, -50%) scale(1);
         }
+
+        /* 반응형 디자인 */
+        @media (max-width: 768px) {
+            /* 모바일 화면 */
+            .key-indicator {
+                font-size: 1rem;
+                padding: 0.8rem 1rem;
+                min-height: 50px;
+            }
+            
+            #start-button, #how-to-play-button {
+                font-size: 1.5rem;
+                padding: 0.75rem 1.5rem;
+            }
+            
+            .overlay h1 {
+                font-size: 2.5rem !important;
+            }
+            
+            .overlay p {
+                font-size: 1rem !important;
+            }
+            
+            /* 화살표 UI 모바일 최적화 */
+            #key-indicators .key-indicator {
+                font-size: 0.9rem;
+                padding: 0.6rem 0.8rem;
+                min-height: 45px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            /* 작은 모바일 화면 */
+            .key-indicator {
+                font-size: 0.9rem;
+                padding: 0.6rem 0.8rem;
+                min-height: 40px;
+            }
+            
+            #start-button, #how-to-play-button {
+                font-size: 1.25rem;
+                padding: 0.6rem 1.2rem;
+            }
+            
+            .overlay h1 {
+                font-size: 2rem !important;
+            }
+            
+            .overlay p {
+                font-size: 0.9rem !important;
+            }
+            
+            /* 화살표 UI 더 작게 */
+            #key-indicators .key-indicator {
+                font-size: 0.8rem;
+                padding: 0.5rem 0.6rem;
+                min-height: 35px;
+            }
+        }
+
+        /* 터치 이벤트 최적화 */
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        button, .key-indicator {
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
     </style>
 </head>
 <body class="bg-gray-800 text-white">
@@ -338,8 +413,8 @@
                 </div>
             </div>
 
-            <!-- 우측 하단: 화살표 버튼 -->
-            <div class="absolute bottom-4 right-4 pointer-events-auto">
+            <!-- 우측 하단: 화살표 버튼 (게임 중에만 표시) -->
+            <div id="key-indicators" class="absolute bottom-4 right-4 pointer-events-auto hidden">
                 <!-- 화살표 방향에 맞는 배열 -->
                 <div class="flex flex-col items-center space-y-2">
                     <!-- 위쪽 화살표 -->
@@ -357,13 +432,17 @@
             </div>
         </div>
 
-        <!-- 시작 화면 -->
-        <div id="start-screen" class="overlay absolute inset-0 bg-black bg-opacity-70 flex flex-col justify-center items-center text-center p-4">
+        <!-- 1차 대기화면 (메인 화면) -->
+        <div id="start-screen" class="overlay absolute inset-0 flex flex-col justify-end items-center text-center p-4">
+            <button id="start-button" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-4 px-12 rounded-lg text-2xl transition-transform transform hover:scale-105 mb-20">게임 시작하기</button>
+        </div>
+
+        <!-- 2차 대기화면 (How to Play) -->
+        <div id="how-to-play-screen" class="overlay absolute inset-0 bg-black bg-opacity-70 flex flex-col justify-center items-center text-center p-4 hidden">
             <h1 class="text-5xl md:text-7xl font-bold mb-4">올영력 챌린지!</h1>
             <p class="text-lg md:text-xl mb-8 max-w-2xl">
-            
             올리브영의 일하는 방식 구호에 맞춰 키보드 화살표가 눌러집니다. <br>동작을 차례대로 기억해 두었다가, 구호가 모두 끝나면 키보드를 순서대로 눌러 따라해주세요!</p>
-            <button id="start-button" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-2xl transition-transform transform hover:scale-105">시작하기</button>
+            <button id="how-to-play-button" class="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg text-2xl transition-transform transform hover:scale-105">시작하기</button>
         </div>
 
         <!-- 게임 오버 화면 -->
@@ -420,6 +499,13 @@
         let stage;
         let lives;
         let sequenceSpeed;
+
+        // --- NPC 관련 변수 ---
+        let npcCharacters = [];
+        let npcSpawnTimer = 0;
+        let npcSpawnInterval = 300000; // 5분 (300초)
+        let maxNpcs = 1; // 최대 NPC 수
+        let isFirstNPCSpawned = false; // 첫 번째 NPC 스폰 여부
         let timeLimit;
         let timerInterval;
         let shakeDuration = 0;
@@ -430,9 +516,12 @@
         const livesContainer = document.getElementById('lives-container');
         const messageBox = document.getElementById('message-box');
         const startScreen = document.getElementById('start-screen');
+        const howToPlayScreen = document.getElementById('how-to-play-screen');
         const gameOverScreen = document.getElementById('game-over-screen');
         const startButton = document.getElementById('start-button');
+        const howToPlayButton = document.getElementById('how-to-play-button');
         const retryButton = document.getElementById('retry-button');
+        const keyIndicators = document.getElementById('key-indicators');
         const timerContainer = document.getElementById('timer-container');
         const timerBar = document.getElementById('timer-bar');
         const progressContainer = document.getElementById('progress-container');
@@ -744,7 +833,7 @@
             // 임시 캔버스로 텍스트 크기 측정
             const tempCanvas = document.createElement('canvas');
             const tempContext = tempCanvas.getContext('2d');
-            tempContext.font = 'bold 22px monospace'; // 폰트 크기 18px → 22px로 증가
+            tempContext.font = 'bold 26px monospace'; // 폰트 크기 22px → 26px로 증가
             
             // 텍스트를 여러 줄로 나누고 최대 너비 계산
             const maxLineWidth = 450; // 최대 라인 너비 증가
@@ -810,7 +899,7 @@
             
             // 8bit 스타일 텍스트
             context.fillStyle = '#000000';
-            context.font = 'bold 22px monospace'; // 폰트 크기 증가
+            context.font = 'bold 26px monospace'; // 폰트 크기 증가
             context.textAlign = 'center';
             context.textBaseline = 'middle';
             
@@ -1080,7 +1169,121 @@
             character.add(rightLeg);
             character.rightLeg = rightLeg;
         }
+
+        // NPC 캐릭터 생성 함수
+        function createNPCCharacter() {
+            const npc = new THREE.Group();
+            scene.add(npc);
+            
+            // NPC는 화면 밖에서 시작 (랜덤한 위치)
+            const spawnSide = Math.random() < 0.5 ? -1 : 1; // 왼쪽 또는 오른쪽
+            npc.position.set(spawnSide * 30, 0.5, (Math.random() - 0.5) * 20);
+            npc.rotation.y = -spawnSide * Math.PI / 2; // 카메라 방향으로 회전
+            
+            // 주인공과 비슷한 외형 (간소화된 버전)
+            const characterMaterial = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0.1 });
+            const skinColor = 0xFFDAB9;
+            const pantsColor = 0x464646;
+            const hairColor = 0x3b2219;
+            
+            // 머리
+            const headGeo = new THREE.BoxGeometry(0.8, 0.8, 0.6);
+            const headMaterials = [
+                new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.8, metalness: 0.1 }),
+                new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.8, metalness: 0.1 }),
+                new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.8, metalness: 0.1 }),
+                new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.8, metalness: 0.1 }),
+                new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.8, metalness: 0.1 }),
+                new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.8, metalness: 0.1 })
+            ];
+            
+            const head = new THREE.Mesh(headGeo, headMaterials);
+            head.castShadow = true;
+            head.position.y = 0.6;
+            npc.add(head);
+            
+            // 몸통 (간단한 티셔츠)
+            const bodyGeo = new THREE.BoxGeometry(0.75, 0.6, 0.35);
+            const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x4169E1, roughness: 0.8, metalness: 0.1 });
+            const body = new THREE.Mesh(bodyGeo, bodyMaterial);
+            body.castShadow = true;
+            body.position.y = 0.1;
+            npc.add(body);
+            
+            // 팔
+            const armGeo = new THREE.BoxGeometry(0.3, 0.5, 0.3);
+            const armMaterial = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.8, metalness: 0.1 });
+            
+            const leftArm = new THREE.Mesh(armGeo, armMaterial);
+            leftArm.castShadow = true;
+            leftArm.position.set(0.6, 0.1, 0);
+            npc.add(leftArm);
+            
+            const rightArm = new THREE.Mesh(armGeo, armMaterial);
+            rightArm.castShadow = true;
+            rightArm.position.set(-0.6, 0.1, 0);
+            npc.add(rightArm);
+            
+            // 다리
+            const legGeo = new THREE.BoxGeometry(0.35, 0.8, 0.35);
+            const legMaterial = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.8, metalness: 0.1 });
+            
+            const leftLeg = new THREE.Mesh(legGeo, legMaterial);
+            leftLeg.castShadow = true;
+            leftLeg.position.set(0.2, -0.9, 0);
+            npc.add(leftLeg);
+            
+            const rightLeg = new THREE.Mesh(legGeo, legMaterial);
+            rightLeg.castShadow = true;
+            rightLeg.position.set(-0.2, -0.9, 0);
+            npc.add(rightLeg);
+            
+            // NPC 속성 설정
+            npc.isNPC = true;
+            npc.walkDirection = new THREE.Vector3(-spawnSide, 0, (Math.random() - 0.5) * 0.5).normalize();
+            npc.walkSpeed = 0.01 + Math.random() * 0.01; // 0.01 ~ 0.02
+            npc.lifeTime = 0;
+            npc.maxLifeTime = 10000 + Math.random() * 10000; // 10-20초
+            
+            return npc;
+        }
         
+        // NPC 업데이트 함수
+        function updateNPCs(delta) {
+            // NPC 스폰 타이머 업데이트
+            npcSpawnTimer += delta * 1000;
+            
+            // 첫 번째 NPC는 즉시 스폰 (3초 후)
+            if (!isFirstNPCSpawned && npcSpawnTimer >= 3000) {
+                const newNPC = createNPCCharacter();
+                npcCharacters.push(newNPC);
+                isFirstNPCSpawned = true;
+                npcSpawnTimer = 0;
+            }
+            // 이후에는 5분마다 NPC 스폰 시도
+            else if (isFirstNPCSpawned && npcSpawnTimer >= npcSpawnInterval && npcCharacters.length < maxNpcs) {
+                const newNPC = createNPCCharacter();
+                npcCharacters.push(newNPC);
+                npcSpawnTimer = 0;
+            }
+            
+            // 기존 NPC들 업데이트
+            for (let i = npcCharacters.length - 1; i >= 0; i--) {
+                const npc = npcCharacters[i];
+                npc.lifeTime += delta * 1000;
+                
+                // NPC 이동
+                npc.position.addScaledVector(npc.walkDirection, npc.walkSpeed);
+                
+                // NPC가 화면 밖으로 나가거나 생명주기가 끝나면 제거
+                const distanceFromCenter = Math.sqrt(npc.position.x * npc.position.x + npc.position.z * npc.position.z);
+                if (distanceFromCenter > 50 || npc.lifeTime >= npc.maxLifeTime) {
+                    scene.remove(npc);
+                    npcCharacters.splice(i, 1);
+                }
+            }
+        }
+
         function playSound(type) {
             if (!audioCtx) {
                 try {
@@ -1509,6 +1712,9 @@
                 // 말풍선 업데이트
                 updateSpeechBubble(delta);
                 
+                // NPC 업데이트
+                updateNPCs(delta);
+                
                 // 3-8초마다 랜덤 애니메이션 실행 (걸어다니지 않을 때만)
                 if (!isWalking && idleAnimationTimer - lastIdleAction > 3000 + Math.random() * 5000) {
                     playIdleAnimation();
@@ -1559,8 +1765,16 @@
         }
 
         function startGame() {
+            // 1차 대기화면에서 2차 대기화면으로 이동
             startScreen.classList.add('hidden');
+            howToPlayScreen.classList.remove('hidden');
+        }
+
+        function startGameFromHowToPlay() {
+            // 2차 대기화면에서 게임 시작
+            howToPlayScreen.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
+            keyIndicators.classList.remove('hidden'); // 화살표 UI 표시
             
             // 3초 카운트다운 시작
             startCountdown();
@@ -2030,10 +2244,20 @@
         function resetGame() {
             clearTimeout(gameOverTimeout); // 자동 리셋 타임아웃 취소
             startScreen.classList.remove('hidden');
+            howToPlayScreen.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
+            keyIndicators.classList.add('hidden'); // 화살표 UI 숨기기
             gameState = 'START';
             lives = 3;
             stage = 1;
+            
+            // NPC들 정리
+            npcCharacters.forEach(npc => {
+                scene.remove(npc);
+            });
+            npcCharacters = [];
+            npcSpawnTimer = 0;
+            isFirstNPCSpawned = false; // 첫 번째 NPC 스폰 플래그 리셋
             
             // 모든 게임 관련 UI 요소들 숨기기
             timerContainer.classList.add('opacity-0');
@@ -2073,7 +2297,24 @@
         }
 
         startButton.addEventListener('click', startGame);
+        howToPlayButton.addEventListener('click', startGameFromHowToPlay);
         retryButton.addEventListener('click', resetGame);
+
+        // 터치 이벤트 추가 (모바일 지원)
+        startButton.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            startGame();
+        });
+        
+        howToPlayButton.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            startGameFromHowToPlay();
+        });
+        
+        retryButton.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            resetGame();
+        });
         
         bgmVolumeSlider.addEventListener('input', (e) => {
             bgm.volume = e.target.value / 100;
@@ -2085,15 +2326,43 @@
 
         window.addEventListener('keydown', handlePlayerInput);
         window.addEventListener('resize', () => {
-            camera.aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+            const canvasContainer = document.getElementById('game-container');
+            const width = canvasContainer.clientWidth;
+            const height = canvasContainer.clientHeight;
+            
+            camera.aspect = width / height;
             camera.updateProjectionMatrix();
-            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+            renderer.setSize(width, height);
+            
+            // 모바일에서 카메라 위치 조정
+            if (width < 768) {
+                camera.position.set(0, 2, 3);
+            } else {
+                camera.position.set(0, 2, 5);
+            }
+            camera.lookAt(0, 1, 0);
         });
         window.addEventListener('mousemove', onMouseMove);
         
         // 화살표 버튼 클릭 이벤트 추가
         document.querySelectorAll('.key-indicator[data-key]').forEach(button => {
             button.addEventListener('click', (e) => {
+                const key = e.currentTarget.getAttribute('data-key');
+                // 키보드 이벤트와 동일한 이벤트 객체 생성
+                const keyEvent = new KeyboardEvent('keydown', {
+                    key: key,
+                    code: key,
+                    keyCode: key === 'ArrowUp' ? 38 : key === 'ArrowDown' ? 40 : key === 'ArrowLeft' ? 37 : 39,
+                    which: key === 'ArrowUp' ? 38 : key === 'ArrowDown' ? 40 : key === 'ArrowLeft' ? 37 : 39,
+                    bubbles: true,
+                    cancelable: true
+                });
+                handlePlayerInput(keyEvent);
+            });
+            
+            // 터치 이벤트 추가 (모바일 지원)
+            button.addEventListener('touchend', (e) => {
+                e.preventDefault();
                 const key = e.currentTarget.getAttribute('data-key');
                 // 키보드 이벤트와 동일한 이벤트 객체 생성
                 const keyEvent = new KeyboardEvent('keydown', {
