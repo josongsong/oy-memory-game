@@ -442,11 +442,30 @@
         const sfxVolumeSlider = document.getElementById('sfx-volume');
         const speechBubble = document.getElementById('speech-bubble');
         
-        // 말풍선 관련 변수
+        // 말풍선 관련 변수 - 올리브영 일하는 방식 공식 메시지
         const speechMessages = [
-            '안녕!', '반가워!', '좋은 하루!', '화이팅!', '멋져!', 
-            '와우!', '신나네!', '즐거워!', '좋아!', '최고!',
-            '힘내!', '잘하고 있어!', '대단해!', '멋있어!', '완벽해!'
+            // 올리브영 공식 일하는 방식
+            "고객의 '건강한 아름다움, 일상 속의 새로움'이 우리의 시작과 끝!",
+            "와! 이걸 한다고? 이게 된다고?! 새로운 시도로 새로운 길을 만들어볼까",
+            "고객과 시장보다 반 발짝 앞서야지!",
+            "공감은 충분히, 실행은 빠르게!",
+            "회의와 보고의 목적은 바로 뭐다? 바로 결론이다.",
+            "어제의 방식이 오늘의 정답은 아니다...",
+            "협업은 도와주는 것이 아니라 결과를 같이 만들어 나가는 것...",
+            "Role + Responsibility, 역할은 권한이 아니라 책임이야",
+            
+            // 추가 메시지
+            "문제와 이슈는 숨기지 말고, 수면 위로 올려 함께 답을 찾는거야.",
+            "내 랩을 들어봐: '내 일!'을 통해, 내일 더 성장!",
+            "우리는 서로에게 '배우고 싶은 동료'가 된다!!",
+            "올리브영을 사랑하는 우리? 우리가 앞으로의 올리브영을 만드는거래 ㅎㅎ",
+            
+            // 추가 인사 및 격려
+            "안녕!", "반가워!", "화이팅!", "오늘도 올영력 충전!",
+            "함께 성장해요!", "뷰티가 최고!", "건강이 우선!",
+            
+            // 글로벌IT개발센터 & 세계정복
+            "글로벌IT개발센터 화이팅!!", "올리브영 세.계.정.복."
         ];
         let speechTimer = 0;
         let speechCooldown = 0;
@@ -606,24 +625,30 @@
             
             // 랜덤 메시지 선택
             const randomMessage = speechMessages[Math.floor(Math.random() * speechMessages.length)];
-            speechBubble.textContent = randomMessage;
             
-            // 캐릭터 위치 기준으로 말풍선 위치 설정
-            const vector = new THREE.Vector3(0, 2.2, 0); // 캐릭터 머리 위
-            vector.project(camera);
+            // 기존 3D 말풍선이 있다면 제거
+            if (character.speechBubble3D) {
+                character.remove(character.speechBubble3D);
+            }
             
-            const x = (vector.x * 0.5 + 0.5) * renderer.domElement.clientWidth;
-            const y = (vector.y * -0.5 + 0.5) * renderer.domElement.clientHeight;
+            // 새로운 3D 8bit 말풍선 생성
+            const speechBubble3D = create3DSpeechBubble(randomMessage);
+            speechBubble3D.position.set(0, 1.8, 0); // 캐릭터 머리 위
             
-            speechBubble.style.left = `${x}px`;
-            speechBubble.style.top = `${y}px`;
-            speechBubble.classList.add('show');
+            // 말풍선이 항상 카메라를 바라보도록 설정
+            speechBubble3D.lookAt(camera.position);
+            
+            character.add(speechBubble3D);
+            character.speechBubble3D = speechBubble3D;
             
             isSpeechActive = true;
             
             // 5초 후 말풍선 숨기기
             setTimeout(() => {
-                speechBubble.classList.remove('show');
+                if (character.speechBubble3D) {
+                    character.remove(character.speechBubble3D);
+                    character.speechBubble3D = null;
+                }
                 isSpeechActive = false;
                 speechCooldown = 5000; // 5초 쿨다운 시작
             }, 5000);
@@ -632,16 +657,9 @@
         function updateSpeechBubble(delta) {
             if (!character) return;
             
-            // 말풍선이 활성화되어 있으면 위치 업데이트
-            if (isSpeechActive) {
-                const vector = new THREE.Vector3(0, 2.2, 0);
-                vector.project(camera);
-                
-                const x = (vector.x * 0.5 + 0.5) * renderer.domElement.clientWidth;
-                const y = (vector.y * -0.5 + 0.5) * renderer.domElement.clientHeight;
-                
-                speechBubble.style.left = `${x}px`;
-                speechBubble.style.top = `${y}px`;
+            // 3D 말풍선이 활성화되어 있으면 카메라를 바라보도록 업데이트
+            if (isSpeechActive && character.speechBubble3D) {
+                character.speechBubble3D.lookAt(camera.position);
             }
             
             // 쿨다운 업데이트
@@ -718,6 +736,159 @@
             });
             
             return { material: badgeMaterial, textureLoader: textureLoader };
+        }
+        
+        function create3DSpeechBubble(text) {
+            const speechGroup = new THREE.Group();
+            
+            // 임시 캔버스로 텍스트 크기 측정
+            const tempCanvas = document.createElement('canvas');
+            const tempContext = tempCanvas.getContext('2d');
+            tempContext.font = 'bold 22px monospace'; // 폰트 크기 18px → 22px로 증가
+            
+            // 텍스트를 여러 줄로 나누고 최대 너비 계산
+            const maxLineWidth = 450; // 최대 라인 너비 증가
+            const words = text.split(' ');
+            let lines = [];
+            let currentLine = '';
+            let maxWidth = 0;
+            
+            words.forEach(word => {
+                const testLine = currentLine + (currentLine ? ' ' : '') + word;
+                const metrics = tempContext.measureText(testLine);
+                if (metrics.width > maxLineWidth && currentLine) {
+                    lines.push(currentLine);
+                    maxWidth = Math.max(maxWidth, tempContext.measureText(currentLine).width);
+                    currentLine = word;
+                } else {
+                    currentLine = testLine;
+                }
+            });
+            if (currentLine) {
+                lines.push(currentLine);
+                maxWidth = Math.max(maxWidth, tempContext.measureText(currentLine).width);
+            }
+            
+            // 동적 크기 계산 (마진 증가)
+            const padding = 80; // 패딩 40px → 80px로 증가
+            const lineHeight = 28; // 라인 높이 22px → 28px로 증가
+            const canvasWidth = Math.max(250, maxWidth + padding);
+            const canvasHeight = Math.max(120, lines.length * lineHeight + padding);
+            
+            // 3D 말풍선 크기도 동적으로 조정
+            const bubbleWidth = canvasWidth / 200; // 기본 200px 기준으로 스케일링
+            const bubbleHeight = canvasHeight / 200;
+            
+            // 8bit 픽셀 스타일 말풍선 배경 (동적 크기)
+            const bubbleGeo = new THREE.PlaneGeometry(bubbleWidth, bubbleHeight);
+            const canvas = document.createElement('canvas');
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            const context = canvas.getContext('2d');
+            
+            // 픽셀 아트 느낌을 위해 이미지 스무딩 끄기
+            context.imageSmoothingEnabled = false;
+            
+            // 8bit 스타일 말풍선 그리기
+            const pixelSize = 8;
+            
+            // 외곽 테두리 (검은색 픽셀)
+            context.fillStyle = '#000000';
+            for (let x = 0; x < canvas.width; x += pixelSize) {
+                for (let y = 0; y < canvas.height; y += pixelSize) {
+                    if (x < pixelSize * 2 || x >= canvas.width - pixelSize * 2 || 
+                        y < pixelSize * 2 || y >= canvas.height - pixelSize * 2) {
+                        context.fillRect(x, y, pixelSize, pixelSize);
+                    }
+                }
+            }
+            
+            // 내부 배경 (흰색)
+            context.fillStyle = '#FFFFFF';
+            context.fillRect(pixelSize * 2, pixelSize * 2, 
+                           canvas.width - pixelSize * 4, canvas.height - pixelSize * 4);
+            
+            // 8bit 스타일 텍스트
+            context.fillStyle = '#000000';
+            context.font = 'bold 22px monospace'; // 폰트 크기 증가
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            
+            // 여러 줄 텍스트 그리기
+            const startY = canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
+            
+            lines.forEach((line, index) => {
+                context.fillText(line, canvas.width / 2, startY + index * lineHeight);
+            });
+            
+            const bubbleTexture = new THREE.CanvasTexture(canvas);
+            bubbleTexture.magFilter = THREE.NearestFilter; // 픽셀 아트 느낌 유지
+            bubbleTexture.minFilter = THREE.NearestFilter;
+            
+            const bubbleMaterial = new THREE.MeshBasicMaterial({ 
+                map: bubbleTexture, 
+                transparent: true,
+                alphaTest: 0.1
+            });
+            
+            const bubble = new THREE.Mesh(bubbleGeo, bubbleMaterial);
+            bubble.position.y = 0.4;
+            speechGroup.add(bubble);
+            
+            // 8bit 스타일 꼬리 (픽셀 삼각형)
+            const tailGeo = new THREE.PlaneGeometry(0.5, 0.5);
+            const tailCanvas = document.createElement('canvas');
+            tailCanvas.width = 100;
+            tailCanvas.height = 100;
+            const tailContext = tailCanvas.getContext('2d');
+            tailContext.imageSmoothingEnabled = false;
+            
+            // 배경을 투명하게 초기화
+            tailContext.clearRect(0, 0, 100, 100);
+            
+            // 픽셀 삼각형 꼬리 그리기 (더 큰 삼각형)
+            const tailPixelSize = 10;
+            
+            // 외곽 테두리 (검은색)
+            const triangleOutline = [
+                [4, 2], [5, 2], // 최상단
+                [3, 3], [4, 3], [5, 3], [6, 3], // 두번째 줄
+                [2, 4], [3, 4], [4, 4], [5, 4], [6, 4], [7, 4], // 세번째 줄
+                [3, 5], [4, 5], [5, 5], [6, 5], // 네번째 줄
+                [4, 6], [5, 6], // 하단
+            ];
+            
+            tailContext.fillStyle = '#000000';
+            triangleOutline.forEach(([x, y]) => {
+                tailContext.fillRect(x * tailPixelSize, y * tailPixelSize, tailPixelSize, tailPixelSize);
+            });
+            
+            // 내부 (흰색)
+            const triangleInner = [
+                [4, 3], [5, 3], // 내부 상단
+                [3, 4], [4, 4], [5, 4], [6, 4], // 내부 중간
+                [4, 5], [5, 5], // 내부 하단
+            ];
+            
+            tailContext.fillStyle = '#FFFFFF';
+            triangleInner.forEach(([x, y]) => {
+                tailContext.fillRect(x * tailPixelSize, y * tailPixelSize, tailPixelSize, tailPixelSize);
+            });
+            
+            const tailTexture = new THREE.CanvasTexture(tailCanvas);
+            tailTexture.magFilter = THREE.NearestFilter;
+            tailTexture.minFilter = THREE.NearestFilter;
+            
+            const tailMaterial = new THREE.MeshBasicMaterial({ 
+                map: tailTexture, 
+                transparent: true,
+                alphaTest: 0.1
+            });
+            const tail = new THREE.Mesh(tailGeo, tailMaterial);
+            tail.position.set(0, -0.1, 0.01); // 말풍선 아래쪽에 위치
+            speechGroup.add(tail);
+            
+            return speechGroup;
         }
 
 
@@ -1359,6 +1530,10 @@
                 // 게임 중에는 말풍선 숨기기
                 if (isSpeechActive) {
                     speechBubble.classList.remove('show');
+                    if (character.speechBubble3D) {
+                        character.remove(character.speechBubble3D);
+                        character.speechBubble3D = null;
+                    }
                     isSpeechActive = false;
                     speechCooldown = 0;
                 }
