@@ -1227,6 +1227,29 @@
             head.position.y = 0.6;
             npc.add(head);
             
+            // 웃는 얼굴 추가
+            const faceComponentsZ = 0.301;
+            
+            // 눈 (웃는 모양)
+            const eyeGeo = new THREE.BoxGeometry(0.1, 0.05, 0.01);
+            const eyeMaterial = new THREE.MeshBasicMaterial({ color: '#000000' });
+            
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMaterial);
+            leftEye.position.set(-0.2, 0.1, faceComponentsZ);
+            head.add(leftEye);
+            
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMaterial);
+            rightEye.position.set(0.2, 0.1, faceComponentsZ);
+            head.add(rightEye);
+            
+            // 웃는 입 (호)
+            const mouthGeo = new THREE.BoxGeometry(0.3, 0.05, 0.01);
+            const mouthMaterial = new THREE.MeshBasicMaterial({ color: '#000000' });
+            const mouth = new THREE.Mesh(mouthGeo, mouthMaterial);
+            mouth.position.set(0, -0.15, faceComponentsZ);
+            mouth.rotation.z = Math.PI / 6; // 살짝 구부러진 웃는 모양
+            head.add(mouth);
+            
             // 몸통 (간단한 티셔츠)
             const bodyGeo = new THREE.BoxGeometry(0.75, 0.6, 0.35);
             const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x4169E1, roughness: 0.8, metalness: 0.1 });
@@ -1268,10 +1291,11 @@
             npc.walkDirection = new THREE.Vector3(-spawnSide, 0, (Math.random() - 0.5) * 0.5).normalize();
             npc.walkSpeed = 0.01 + Math.random() * 0.01; // 0.01 ~ 0.02
             npc.lifeTime = 0;
-            npc.maxLifeTime = 10000 + Math.random() * 10000; // 10-20초
+            npc.maxLifeTime = 30000 + Math.random() * 20000; // 30-50초로 증가
             npc.walkTimer = 0;
             npc.walkPhase = 0;
             npc.isWalking = true;
+            npc.spawnSide = spawnSide; // 스폰 위치 저장
             
             return npc;
         }
@@ -1309,9 +1333,12 @@
                     updateNPCWalkingAnimation(npc, delta);
                 }
                 
-                // NPC가 화면 밖으로 나가거나 생명주기가 끝나면 제거
-                const distanceFromCenter = Math.sqrt(npc.position.x * npc.position.x + npc.position.z * npc.position.z);
-                if (distanceFromCenter > 50 || npc.lifeTime >= npc.maxLifeTime) {
+                // NPC가 반대편 화면 끝까지 가거나 생명주기가 끝나면 제거
+                const oppositeSide = -npc.spawnSide * 30; // 반대편 위치
+                const hasReachedOppositeSide = (npc.spawnSide > 0 && npc.position.x < oppositeSide) || 
+                                             (npc.spawnSide < 0 && npc.position.x > oppositeSide);
+                
+                if (hasReachedOppositeSide || npc.lifeTime >= npc.maxLifeTime) {
                     scene.remove(npc);
                     npcCharacters.splice(i, 1);
                 }
