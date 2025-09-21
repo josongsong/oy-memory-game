@@ -1763,14 +1763,16 @@
                  balloon.position.y += Math.sin(elapsedTime * 0.5 + balloon.position.x) * 0.005;
             });
 
-            // 대기화면에서만 애니메이션 실행 (카운트다운 중에는 중단)
+            // 대기화면과 How to Play 화면에서 애니메이션 실행 (카운트다운 중에는 중단)
             const startScreen = document.getElementById('start-screen');
+            const howToPlayScreen = document.getElementById('how-to-play-screen');
             const countdownElement = document.getElementById('countdown');
             const isStartScreenVisible = startScreen && !startScreen.classList.contains('hidden');
+            const isHowToPlayVisible = howToPlayScreen && !howToPlayScreen.classList.contains('hidden');
             const isCountdownVisible = countdownElement && countdownElement.style.display !== 'none';
             
-            // 오직 대기화면에서만 애니메이션 실행 (카운트다운 중에는 완전히 중단)
-            if (isStartScreenVisible && !isCountdownVisible && character) {
+            // 대기화면 또는 How to Play 화면에서 애니메이션 실행 (카운트다운 중에는 완전히 중단)
+            if ((isStartScreenVisible || isHowToPlayVisible) && !isCountdownVisible && character) {
                 idleAnimationTimer += delta * 1000; // 밀리초로 변환
                 
                 // 걸어다니기 업데이트
@@ -2438,6 +2440,13 @@
                 } else if (gameState === 'SHOWING' || gameState === 'WAITING') {
                     // 게임 중이면 아무 동작 안함
                 }
+            }
+            
+            // How to Play 화면에서도 터치로 게임 시작 가능
+            const howToPlayScreen = document.getElementById('how-to-play-screen');
+            const isHowToPlayVisible = howToPlayScreen && !howToPlayScreen.classList.contains('hidden');
+            if (isHowToPlayVisible && distance < 200) {
+                startGameFromHowToPlay();
             }
         }
 
