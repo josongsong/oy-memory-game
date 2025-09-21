@@ -1,4 +1,11 @@
+# Git directories
+.git/
+.gitignore
 
+# IDE directories  
+.vscode/
+.cursor/
 
-# Ignore kluster.ai Verify Code rules
-.cursor/rules/kluster-code-verify.mdc
+# Temporary files
+temp_*
+*_obfuscated.*
