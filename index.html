@@ -353,6 +353,7 @@
             -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
         }
+
     </style>
 </head>
 <body class="bg-gray-800 text-white">
@@ -437,6 +438,7 @@
             <button id="start-button" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-4 px-12 rounded-lg text-2xl transition-transform transform hover:scale-105 mb-20">게임 시작하기</button>
         </div>
 
+
         <!-- 2차 대기화면 (How to Play) -->
         <div id="how-to-play-screen" class="overlay absolute inset-0 bg-black bg-opacity-70 flex flex-col justify-center items-center text-center p-4 hidden">
             <h1 class="text-5xl md:text-7xl font-bold mb-4">올영력 챌린지!</h1>
@@ -506,6 +508,18 @@
         let npcSpawnInterval = 300000; // 5분 (300초)
         let maxNpcs = 1; // 최대 NPC 수
         let isFirstNPCSpawned = false; // 첫 번째 NPC 스폰 여부
+
+        // --- 터치 제스처 관련 변수 ---
+        let isMobile = false;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchStartTime = 0;
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+        let cameraAngleX = 0; // 카메라 수직 각도
+        let cameraAngleY = 0; // 카메라 수평 각도
+        let cameraDistance = 5; // 카메라 거리
+        let isDragging = false;
         let timeLimit;
         let timerInterval;
         let shakeDuration = 0;
@@ -565,6 +579,11 @@
         let sfxVolume = SFX_DEFAULT_VOLUME / 100;
 
         function init3D() {
+            // 모바일 감지
+            isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                      ('ontouchstart' in window) || 
+                      (navigator.maxTouchPoints > 0);
+            
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87CEEB);
             scene.fog = new THREE.Fog(0x87CEEB, 20, 80);
@@ -572,6 +591,12 @@
             camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
             camera.position.set(0, 4, 5);
             camera.lookAt(0, 0.5, 0);
+            
+            // 모바일에서 초기 카메라 설정
+            if (isMobile) {
+                cameraDistance = 3;
+                camera.position.set(0, 2, cameraDistance);
+            }
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
@@ -1244,6 +1269,9 @@
             npc.walkSpeed = 0.01 + Math.random() * 0.01; // 0.01 ~ 0.02
             npc.lifeTime = 0;
             npc.maxLifeTime = 10000 + Math.random() * 10000; // 10-20초
+            npc.walkTimer = 0;
+            npc.walkPhase = 0;
+            npc.isWalking = true;
             
             return npc;
         }
@@ -1271,9 +1299,15 @@
             for (let i = npcCharacters.length - 1; i >= 0; i--) {
                 const npc = npcCharacters[i];
                 npc.lifeTime += delta * 1000;
+                npc.walkTimer += delta * 1000;
                 
                 // NPC 이동
                 npc.position.addScaledVector(npc.walkDirection, npc.walkSpeed);
+                
+                // NPC 걸어다니기 애니메이션
+                if (npc.isWalking && npc.children.length > 0) {
+                    updateNPCWalkingAnimation(npc, delta);
+                }
                 
                 // NPC가 화면 밖으로 나가거나 생명주기가 끝나면 제거
                 const distanceFromCenter = Math.sqrt(npc.position.x * npc.position.x + npc.position.z * npc.position.z);
@@ -1281,6 +1315,39 @@
                     scene.remove(npc);
                     npcCharacters.splice(i, 1);
                 }
+            }
+        }
+
+        // NPC 걸어다니기 애니메이션 함수
+        function updateNPCWalkingAnimation(npc, delta) {
+            const walkSpeed = 8; // 걷기 속도
+            const armSwing = 0.3; // 팔 흔들기 범위
+            const legSwing = 0.4; // 다리 흔들기 범위
+            
+            npc.walkPhase += delta * walkSpeed;
+            
+            // 팔 애니메이션 (왼쪽과 오른쪽이 반대로)
+            const leftArm = npc.children.find(child => child.position.x > 0 && child.geometry.type === 'BoxGeometry');
+            const rightArm = npc.children.find(child => child.position.x < 0 && child.geometry.type === 'BoxGeometry');
+            
+            if (leftArm && rightArm) {
+                leftArm.rotation.x = Math.sin(npc.walkPhase) * armSwing;
+                rightArm.rotation.x = -Math.sin(npc.walkPhase) * armSwing;
+            }
+            
+            // 다리 애니메이션 (왼쪽과 오른쪽이 반대로)
+            const leftLeg = npc.children.find(child => child.position.x > 0 && child.position.y < 0);
+            const rightLeg = npc.children.find(child => child.position.x < 0 && child.position.y < 0);
+            
+            if (leftLeg && rightLeg) {
+                leftLeg.rotation.x = -Math.sin(npc.walkPhase) * legSwing;
+                rightLeg.rotation.x = Math.sin(npc.walkPhase) * legSwing;
+            }
+            
+            // 몸통 약간의 상하 움직임
+            const body = npc.children.find(child => child.position.y > 0 && child.position.y < 1 && child.geometry.type === 'BoxGeometry');
+            if (body) {
+                body.position.y = 0.1 + Math.abs(Math.sin(npc.walkPhase * 2)) * 0.05;
             }
         }
 
@@ -2296,6 +2363,94 @@
             mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
         }
 
+        // 터치 이벤트 핸들러들
+        function onTouchStart(event) {
+            if (!isMobile) return;
+            
+            event.preventDefault();
+            const touch = event.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            lastTouchX = touch.clientX;
+            lastTouchY = touch.clientY;
+            touchStartTime = Date.now();
+            isDragging = true;
+        }
+
+        function onTouchMove(event) {
+            if (!isMobile || !isDragging) return;
+            
+            event.preventDefault();
+            const touch = event.touches[0];
+            const deltaX = touch.clientX - lastTouchX;
+            const deltaY = touch.clientY - lastTouchY;
+            
+            // 카메라 각도 업데이트
+            cameraAngleY -= deltaX * 0.01; // 수평 회전
+            cameraAngleX -= deltaY * 0.01; // 수직 회전
+            
+            // 수직 각도 제한
+            cameraAngleX = Math.max(-Math.PI/3, Math.min(Math.PI/3, cameraAngleX));
+            
+            // 카메라 위치 업데이트
+            updateCameraPosition();
+            
+            lastTouchX = touch.clientX;
+            lastTouchY = touch.clientY;
+        }
+
+        function onTouchEnd(event) {
+            if (!isMobile) return;
+            
+            event.preventDefault();
+            isDragging = false;
+            
+            // 짧은 터치인 경우 탭으로 처리 (게임 조작)
+            const touchDuration = Date.now() - touchStartTime;
+            if (touchDuration < 200) {
+                handleTouchTap(event);
+            }
+        }
+
+        function onTouchCancel(event) {
+            if (!isMobile) return;
+            
+            event.preventDefault();
+            isDragging = false;
+        }
+
+        // 터치 탭 처리 (게임 조작)
+        function handleTouchTap(event) {
+            const touch = event.changedTouches[0];
+            const rect = renderer.domElement.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            
+            // 화면 중앙 근처를 터치하면 게임 시작
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+            
+            if (distance < 100) {
+                // 게임 시작 로직
+                if (gameState === 'START') {
+                    startGame();
+                } else if (gameState === 'SHOWING' || gameState === 'WAITING') {
+                    // 게임 중이면 아무 동작 안함
+                }
+            }
+        }
+
+        // 카메라 위치 업데이트
+        function updateCameraPosition() {
+            const x = Math.sin(cameraAngleY) * cameraDistance;
+            const z = Math.cos(cameraAngleY) * cameraDistance;
+            const y = Math.sin(cameraAngleX) * cameraDistance + 2;
+            
+            camera.position.set(x, y, z);
+            camera.lookAt(0, 1, 0);
+        }
+
         startButton.addEventListener('click', startGame);
         howToPlayButton.addEventListener('click', startGameFromHowToPlay);
         retryButton.addEventListener('click', resetGame);
@@ -2335,14 +2490,23 @@
             renderer.setSize(width, height);
             
             // 모바일에서 카메라 위치 조정
-            if (width < 768) {
-                camera.position.set(0, 2, 3);
+            if (isMobile) {
+                cameraDistance = 3;
+                updateCameraPosition();
             } else {
                 camera.position.set(0, 2, 5);
+                camera.lookAt(0, 1, 0);
             }
-            camera.lookAt(0, 1, 0);
         });
         window.addEventListener('mousemove', onMouseMove);
+        
+        // 터치 이벤트 리스너 추가 (모바일)
+        if (isMobile) {
+            renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
+            renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
+            renderer.domElement.addEventListener('touchend', onTouchEnd, { passive: false });
+            renderer.domElement.addEventListener('touchcancel', onTouchCancel, { passive: false });
+        }
         
         // 화살표 버튼 클릭 이벤트 추가
         document.querySelectorAll('.key-indicator[data-key]').forEach(button => {
